@@ -1,33 +1,196 @@
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>Mukah 360&deg; - Tapak Pesta Kaul</title>
-    <meta name="description" content="360&deg; Image - A-Frame">
-    <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
-  </head>
-  <body>
-    <a-scene>
-      <a-assets>
-      </a-assets>
-<!-- MAIN 360 IMAGE. -->
-      <a-sky color="#FEE0E7"></a-sky>
-<!-- PORTALS. -->
-      <a-sphere position="-4 0 -4" radius="0.3" color="red"></a-sphere>
-      <a-sphere position="-5 0 -5" radius="0.3" color="blue"></a-sphere>
-      <a-sphere position="-4 0 -5" radius="0.3" color="blue"></a-sphere>
-      <a-sphere position="-3 0 -5" radius="0.3" color="blue"></a-sphere>
-      <a-sphere position="-2 0 -5" radius="0.3" color="blue"></a-sphere>
-      <a-sphere position="-1 0 -5" radius="0.3" color="blue"></a-sphere>
-      <a-sphere position="0 0 -5" radius="0.3" color="blue"></a-sphere>
-      <a-sphere position="1 0 -5" radius="0.3" color="blue"></a-sphere>
-      <a-sphere position="2 0 -5" radius="0.3" color="blue"></a-sphere>
-      <a-sphere position="3 0 -5" radius="0.3" color="blue"></a-sphere>
-      <a-sphere position="4 0 -5" radius="0.3" color="blue"></a-sphere>
-      <a-sphere position="5 0 -5" radius="0.3" color="blue"></a-sphere>
-<!-- CAMERA + CURSOR. -->
-      <a-camera cursor="rayOrigin: mouse">
-        <a-cursor></a-cursor>
-        </a-camera>
-      </a-scene>
-  </body>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>A-Frame — Editable Grid Interface</title>
+  <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
+  <!-- Optional: layout component (makes grid placement easier) -->
+  <script src="https://unpkg.com/aframe-layout-component@5.x.x/dist/aframe-layout-component.min.js"></script>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    /* Small helper for viewing in a browser window */
+    #info { position: absolute; left: 10px; top: 10px; z-index: 10; background: rgba(255,255,255,0.85); padding: 6px 10px; border-radius: 6px; font-size: 13px }
+  </style>
+</head>
+<body>
+  <div id="info">Click the buttons on the panel (mouse or VR cursor)</div>
+
+  <a-scene background="color: #222">
+    <!-- Camera + cursor for desktop clicking and VR controllers -->
+    <a-entity id="cameraRig">
+      <a-entity camera look-controls position="0 1.6 0">
+        <!-- ring cursor for gaze/VR controllers; also works with mouse clicks -->
+        <a-entity cursor="rayOrigin: mouse" raycaster="objects: .clickable" position="0 0 -1"
+                  geometry="primitive: ring; radiusInner: 0.01; radiusOuter: 0.02"
+                  material="color: #FFF; shader: flat">
+        </a-entity>
+      </a-entity>
+    </a-entity>
+
+    <!-- Panel background (a-plane) that holds the interface -->
+    <a-entity id="ui-root" position="0 1.6 -1.8">
+      <a-plane id="panel-bg" width="1.6" height="1.0" color="#0f1724" material="opacity:0.95" radius="0.02"></a-plane>
+
+      <!-- Container for buttons. We'll populate this from JS for easy editing -->
+      <a-entity id="button-container" position="-0.78 0.45 0.01"></a-entity>
+
+      <!-- Title text (editable) -->
+      <a-entity position="-0.72 0.88 0.01">
+        <a-text value="Main Menu" color="#F8FAFC" width="1.4" align="left" wrap-count="24"></a-text>
+      </a-entity>
+    </a-entity>
+
+    <!-- Simple environment so scene doesn't feel empty -->
+    <a-entity light="type: ambient; intensity: 0.7"></a-entity>
+    <a-entity light="type: directional; intensity: 0.6" position="-1 1 0"></a-entity>
+
+    <a-sky color="#0b1220"></a-sky>
+  </a-scene>
+
+  <script>
+    /***************************************************************************
+     * Editable grid interface for A-Frame
+     * - All the buttons are defined in `buttonList` below (easy for beginners)
+     * - Grid layout controlled by `cols`, `spacingX`, `spacingY`
+     * - Each button is an <a-plane> with a child <a-text>
+     * - Clicks call `handleButtonClick(id)` — adapt this function to hook into
+     *   your application (play audio, show video, open panel, etc.)
+     ***************************************************************************/
+
+    // --- CONFIG: change these to customize the grid ---
+    const cols = 3;               // number of columns in the grid
+    const spacingX = 0.5;         // horizontal spacing between buttons
+    const spacingY = 0.26;        // vertical spacing between buttons
+    const buttonWidth = 0.45;     // button plane width
+    const buttonHeight = 0.18;    // button plane height
+
+    // Define the buttons here. Add/remove entries as you like.
+    // Each item: { id: 'unique', label: 'Text shown', action: 'optional action type' }
+    const buttonList = [
+      { id: 'btn-01', label: 'Play Video', action: 'video' },
+      { id: 'btn-02', label: 'Open Article', action: 'article' },
+      { id: 'btn-03', label: 'Show Photo', action: 'photo' },
+      { id: 'btn-04', label: 'Start Quiz', action: 'quiz' },
+      { id: 'btn-05', label: 'Audio Clip', action: 'audio' },
+      { id: 'btn-06', label: 'Close', action: 'close' },
+      { id: 'btn-07', label: 'Extra 1', action: 'extra' },
+      { id: 'btn-08', label: 'Extra 2', action: 'extra' },
+      { id: 'btn-09', label: 'Extra 3', action: 'extra' }
+    ];
+
+    const container = document.getElementById('button-container');
+
+    // Helper: create one button at (colIndex, rowIndex)
+    function createButton(item, colIndex, rowIndex) {
+      const x = colIndex * spacingX;
+      const y = -rowIndex * spacingY; // negative because A-Frame Y goes up
+
+      // Main plane
+      const plane = document.createElement('a-plane');
+      plane.setAttribute('class', 'clickable');
+      plane.setAttribute('id', item.id);
+      plane.setAttribute('width', buttonWidth);
+      plane.setAttribute('height', buttonHeight);
+      plane.setAttribute('position', `${x + buttonWidth/2} ${y - buttonHeight/2} 0`);
+      plane.setAttribute('material', 'color: #1f2937; shader: flat; opacity: 0.98');
+      plane.setAttribute('geometry', 'primitive: plane;');
+      plane.setAttribute('rounded', ''); // harmless if rounded component not present
+
+      // Subtle border using an outline plane slightly behind
+      const border = document.createElement('a-plane');
+      border.setAttribute('width', buttonWidth + 0.02);
+      border.setAttribute('height', buttonHeight + 0.02);
+      border.setAttribute('position', '0 0 -0.001');
+      border.setAttribute('material', 'color: #111827; shader: flat; opacity: 0.6');
+      plane.appendChild(border);
+
+      // Text label
+      const text = document.createElement('a-text');
+      text.setAttribute('value', item.label);
+      text.setAttribute('align', 'center');
+      text.setAttribute('width', buttonWidth * 3);
+      text.setAttribute('position', `0 ${-0.01} 0.01`);
+      text.setAttribute('color', '#F8FAFC');
+      text.setAttribute('wrap-count', 24);
+      plane.appendChild(text);
+
+      // Hover + click interactions (mouse & VR)
+      plane.addEventListener('mouseenter', () => {
+        plane.setAttribute('scale', '1.02 1.02 1');
+        plane.setAttribute('material', 'color: #374151; shader: flat; opacity: 1');
+      });
+      plane.addEventListener('mouseleave', () => {
+        plane.setAttribute('scale', '1 1 1');
+        plane.setAttribute('material', 'color: #1f2937; shader: flat; opacity: 0.98');
+      });
+      plane.addEventListener('click', (ev) => {
+        // Prevent double triggers from both mouse and cursor in some setups
+        ev.stopPropagation();
+        handleButtonClick(item.id, item.action);
+      });
+
+      return plane;
+    }
+
+    // Build grid (rows are filled left-to-right)
+    function buildGrid() {
+      // remove previous children
+      while (container.firstChild) container.removeChild(container.firstChild);
+
+      let col = 0, row = 0;
+      for (let i = 0; i < buttonList.length; i++) {
+        const btn = createButton(buttonList[i], col, row);
+        container.appendChild(btn);
+
+        col++;
+        if (col >= cols) { col = 0; row++; }
+      }
+    }
+
+    // Example handler: adapt this to your app
+    function handleButtonClick(id, action) {
+      console.log('Button clicked:', id, action);
+      // Basic demonstration behaviour: show a temporary 3D text on the panel
+      showTemporaryMessage(`Clicked: ${id} (${action || 'none'})`);
+
+      // TODO: replace with your real actions, e.g. openVideo(id), openArticle(id), etc.
+    }
+
+    // Small helper: show a message on top of panel for 1.8s
+    let msgTimeout = null;
+    function showTemporaryMessage(text) {
+      // remove existing message
+      const existing = document.getElementById('ui-msg');
+      if (existing) existing.parentNode.removeChild(existing);
+      if (msgTimeout) { clearTimeout(msgTimeout); msgTimeout = null; }
+
+      const m = document.createElement('a-entity');
+      m.setAttribute('id', 'ui-msg');
+      m.setAttribute('position', '-0.72 0.02 0.01');
+
+      const mtext = document.createElement('a-text');
+      mtext.setAttribute('value', text);
+      mtext.setAttribute('color', '#E6E7E8');
+      mtext.setAttribute('width', '1.4');
+      mtext.setAttribute('align', 'left');
+      m.appendChild(mtext);
+
+      document.getElementById('ui-root').appendChild(m);
+
+      msgTimeout = setTimeout(() => {
+        const node = document.getElementById('ui-msg');
+        if (node) node.parentNode.removeChild(node);
+      }, 1800);
+    }
+
+    // Build the UI on load
+    window.addEventListener('load', () => {
+      buildGrid();
+
+      // Provide a small console hint for beginners
+      console.info('Grid interface ready. Edit the `buttonList` array and `cols`/spacing variables in the script to customize.');
+    });
+  </script>
+</body>
 </html>
